@@ -78,58 +78,82 @@ step = 0.01
 for idx, val in enumerate(value):
     extended_data.append(np.arange(val-10, val, step))
 
-best_values = [-1 for i in range(len(value))]
-best_utility = [-1 for i in range(len(value))]
-best_prob = [-1 for i in range(len(value))]
-all_utility = []
+def optimalBid(data):
+    best_values = [-1 for i in range(len(value))]
+    best_utility = [-1 for i in range(len(value))]
+    best_prob = [-1 for i in range(len(value))]
+    all_utility = []
 
-for idx, val in enumerate(value):
-    max = -1
-    for cur_bid in np.arange(0, val):
-        utility = 0
-        beat = 0
+    for idx, val in enumerate(value):
+        max = -1
+        for cur_bid in np.arange(0, val):
+            utility = 0
+            beat = 0
+            for r in data:
+                for c in r:
+                    utility += value[idx] - cur_bid if cur_bid >= float(c) else 0
+                    beat += 1 if cur_bid >= float(c) else 0
+            if utility >= max:
+                best_values[idx] = cur_bid
+                best_utility[idx] = utility
+                best_prob[idx] = beat
+                max = utility
+            all_utility.append(utility)
+
+
+    # print(f"Best value for maximum utility within this dataset is {best_values}")
+    # print(f"Best expected utility winning probability is {np.divide(best_prob, len(data) * len(data[0]))} ")
+    # print(f"Best expected utility within this data is {np.divide(best_utility, len(data) * len(data[0]))}")
+
+    epsilons = [0.9, 0.5, 0.1, 0.01, 0.0001] #tested for multiple epsilon values such as 0.8, 0.5, 0.01, 0.0001
+
+    for epsilon in epsilons:
+        for idx, val in enumerate(best_values):
+            utility = 0
+            upper_val = val + epsilon
+            for r in data:
+                for c in r:
+                    utility += value[idx] - upper_val if upper_val >= float(c) else 0
+
+            if utility > best_utility[idx]:
+                best_utility[idx] = utility
+                best_values[idx] = upper_val
+
+            utility = 0
+            lower_val = val - epsilon
+            for r in data:
+                for c in r:
+                    utility += value[idx] - lower_val if lower_val >= float(c) else 0
+
+            if utility > best_utility[idx]:
+                best_utility[idx] = utility
+                best_values[idx] = upper_val
+
+    # print(f"Best value for maximum utility within this dataset is {best_values}") #know this is true maximum as changing by an epsilon did not change anything
+    #just say that raising it by a tiny epsilon is basically insignficant
+    return best_values
+
+def calculateUtility(bids, data):
+    utility = []
+    for idx, bid in enumerate(bids):
+        cur = 0
         for r in data:
             for c in r:
-                utility += value[idx] - cur_bid if cur_bid >= float(c) else 0
-                beat += 1 if cur_bid >= float(c) else 0
-        if utility >= max:
-            best_values[idx] = cur_bid
-            best_utility[idx] = utility
-            best_prob[idx] = beat
-            max = utility
-        all_utility.append(utility)
+                if float(c) <= bid:
+                    cur += value[idx] - bid
+        utility.append(cur)
+    divided =  np.divide(utility, (len(data) * len(data[0])))
+    expected_all = np.sum(divided) / len(bids)
 
+    return divided, expected_all
 
-print(f"Best value for maximum utility within this dataset is {best_values}")
-print(f"Best expected utility winning probability is {np.divide(best_prob, 420)} ")
-print(f"Best expected utility within this data is {np.divide(best_utility, len(data) * len(data[0]))}")
+def randomDataSet(n):
+    out = []
+    for i in range(n):
+        row = random.randint(0, len(data)-1)
 
-epsilons = [0.9, 0.5, 0.1, 0.01, 0.0001] #tested for multiple epsilon values such as 0.8, 0.5, 0.01, 0.0001
-
-for epsilon in epsilons:
-    for idx, val in enumerate(best_values):
-        utility = 0
-        upper_val = val + epsilon
-        for r in data:
-            for c in r:
-                utility += value[idx] - upper_val if upper_val >= float(c) else 0
-
-        if utility > best_utility[idx]:
-            best_utility[idx] = utility
-            best_values[idx] = upper_val
-
-        utility = 0
-        lower_val = val - epsilon
-        for r in data:
-            for c in r:
-                utility += value[idx] - lower_val if lower_val >= float(c) else 0
-
-        if utility > best_utility[idx]:
-            best_utility[idx] = utility
-            best_values[idx] = upper_val
-
-print(f"Best value for maximum utility within this dataset is {best_values}") #know this is true maximum as changing by an epsilon did not change anything
-#just say that raising it by a tiny epsilon is basically insignficant
+        out.append(data[row])
+    return out
 
 
 #TODO update report for question 2/3 with logic along these lines
@@ -152,33 +176,86 @@ print(f"Best value for maximum utility within this dataset is {best_values}") #k
 
 def algorithm(data):
     num_samples = len(data)
-    out = [-1 for i in range(len(value))]
-    for idx, val in enumerate(value):
-        less_than = []
-        for r in data:
-            for c in r:
-                if float(c) <= val:
-                    less_than.append(float(c))
-        median = np.median(less_than)
-        std = np.std(less_than)
-        calculated_value = median + (num_samples/50)
-        out[idx] = calculated_value
-    return out
 
+    best_utility = -1
+    final = []
+    empirical = -1
+    pure_mean = 0
+    for i in range(0, 1):
+        out = [-1 for i in range(len(value))]
+        for idx, val in enumerate(value):
+            less_than = []
+            for r in data:
+                for c in r:
+                    if float(c) <= val:
+                        less_than.append(float(c))
+            mean = np.mean(less_than)
+            std = np.std(less_than)
+            if abs(i) >= 0.001:
+                # if val != 10:
+                #     i = 100000
+                calculated_value = mean + (1/i * std)
+            else:
+                calculated_value = mean
+            out[idx] = calculated_value
+        if calculateUtility(out, data)[1] > best_utility:
+            best_utility = calculateUtility(out, data)[1]
+            final = out
+            empirical = i
+        if abs(i) <= 0.005:
+            # print(f"OUTTTTTTTTT {out}")
+            pure_mean = calculateUtility(out, data)[1]
+    return final, empirical, pure_mean, best_utility
 
-new_bids = algorithm(extended_data)
+# print(optimalBid(data))
+# print(calculateUtility(bids, data))
+# print(calculateUtility(optimalBid(data), data))
+# print(algorithm(extended_data)[0])
+# print(optimalBid(extended_data))
+arr = []
+optimal_util = []
+best_util = []
+optimal = optimalBid(data)
+optimal_utility = calculateUtility(optimal, data)[1]
 
-print(calculateExpectedUtility(best_values, data))
-print(np.sum(calculateExpectedUtility(new_bids, data)))
+for i in range(1, 50):
 
-real_expected = calculateExpectedUtility(bids, data)[0]
+    random_bids = randomDataSet(100)
+    algorithm_bid = algorithm(random_bids)
+    # print(algorithm_bid)
+    arr.append(calculateUtility(algorithm_bid[0], data)[1])
+    # arr.append(algorithm_bid[1])
+    best = optimalBid(random_bids)
 
-print(np.sum(real_expected)/10)
-print(100 * np.divide(np.abs(np.subtract(real_expected, averaged_monte_sim.sum(axis=1))), real_expected))
-extended_value = np.arange(0, 100, 1)
-prob_chance = calculateExpectedUtility(np.add(value, 1), data)[1]
+    # print(calculateUtility(algorithm_bid[0], data), algorithm_bid[1])
+    best_util.append(calculateUtility(best, data)[1])
+    optimal_util.append(optimal_utility)
 
-best_utility_prob = np.divide(best_prob, 420)
+import matplotlib.pyplot as plt
+print(optimal_utility)
+print(np.sum(arr)/49)
+print(np.sum(best_util)/49)
+plt.title("Expected Utility Across 50 Trials of 10 Data Samples")
+plt.xlabel("Trial Number")
+plt.ylabel("Expected Utility")
+plt.plot(range(1, 50), best_util, label="Optimal on Training")
+plt.plot(range(1, 50), arr, label="Mean on Training")
+plt.plot(range(1, 50), optimal_util, label="Best Possible Utility")
+plt.legend()
+plt.show()
+#new_bids = algorithm(extended_data)
+#
+# # print(calculateExpectedUtility(best_values, data))
+# print(np.sum(calculateExpectedUtility(new_bids, data)))
+#
+# real_expected = calculateExpectedUtility(bids, data)[0]
+#
+# print(np.sum(real_expected)/10)
+# print(100 * np.divide(np.abs(np.subtract(real_expected, averaged_monte_sim.sum(axis=1))), real_expected))
+# extended_value = np.arange(0, 100, 1)
+# prob_chance = calculateExpectedUtility(np.add(value, 1), data)[1]
+
+# best_utility_prob = np.divide(best_prob, 420)
 # prob_chance = np.multiply(prob_chance, 100)
 
 
